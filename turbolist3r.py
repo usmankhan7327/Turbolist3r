@@ -692,14 +692,19 @@ class DNSdumpster(enumratorBaseThreaded):
         return self.get_response(resp)
 
     def get_csrftoken(self, resp):
-        csrf_regex = re.compile("<input type=\"hidden\" name=\"csrfmiddlewaretoken\" value=\"(.*?)\">", re.S)
-        token = csrf_regex.findall(resp)[0]
-        return token.strip()
+        csrf_regex = re.compile(r'name=["\']csrfmiddlewaretoken["\'] value=["\']([^"\']+)["\']')
+        matches = csrf_regex.findall(resp)
+        if not matches:
+            print("[!] Could not find CSRF token in response. The site may have changed or blocked the request.")
+            return None
+        return matches[0]
 
     def enumerate(self):
         self.lock = threading.BoundedSemaphore(value=70)
         resp = self.req('GET', self.base_url)
         token = self.get_csrftoken(resp)
+        if not token:
+            return []
         params = {'csrfmiddlewaretoken': token, 'targetip': self.domain}
         post_resp = self.req('POST', self.base_url, params)
         self.extract_domains(post_resp)
